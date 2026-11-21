@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://accounts.spotify.com; form-action 'none'; base-uri 'none'">
+  <title>Spotify 위젯 연결 · IMJI</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { color-scheme: dark; --surface:#181c1b; --line:#343a37; --muted:#b0b9b4; --ink:#f0f4ef; --accent:#a9efbe; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; min-height:100svh; background:#101312; color:var(--ink); font:16px/1.65 Inter,"Segoe UI","Malgun Gothic",sans-serif; word-break:keep-all; }
+    main { width:min(100% - 36px, 590px); margin:clamp(32px,8vh,84px) auto; }
+    header { display:flex; align-items:center; gap:12px; margin-bottom:24px; }
+    .record { display:block; width:41px; height:41px; flex:none; border:1px solid #93b8a3; border-radius:50%; background:radial-gradient(circle,#14251a 0 6%,#a9efbe 7% 22%,transparent 23%),repeating-radial-gradient(circle,#48584e 0 1px,#22352b 2px 4px); }
+    h1 { font-size:clamp(25px,5.2vw,33px); letter-spacing:-.055em; line-height:1.23; margin:0; }
+    header small { color:var(--muted); font-size:13px; }
+    section.card { padding:clamp(20px,4vw,32px); border:1px solid var(--line); background:var(--surface); border-radius:18px; }
+    .group + .group { border-top:1px solid var(--line); margin-top:24px; padding-top:21px; }
+    h2, label { display:block; font-size:17px; font-weight:650; margin:0 0 6px; letter-spacing:-.025em; }
+    p { margin:0 0 12px; color:var(--muted); }
+    a { color:var(--accent); text-underline-offset:3px; }
+    .small { font-size:13px; }
+    .row { display:flex; align-items:stretch; gap:8px; min-width:0; margin-top:8px; }
+    input { width:100%; min-width:0; flex:1; border:1px solid #46514b; border-radius:8px; background:#101412; color:var(--ink); padding:10px 12px; font:14px/1.5 "Cascadia Code",Consolas,monospace; }
+    input::placeholder { color:#8d9992; }
+    input:focus-visible, button:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    button { flex:none; cursor:pointer; min-height:42px; border:1px solid #49534e; border-radius:8px; background:#262d29; color:var(--ink); font:inherit; font-weight:600; padding:7px 13px; }
+    button:hover { background:#35413a; }
+    button.primary { width:100%; margin-top:16px; background:var(--accent); border-color:var(--accent); color:#14281c; }
+    button.primary:hover { background:#c1f9cf; }
+    button:disabled { opacity:.55; cursor:wait; }
+    button.link { background:transparent; border:0; color:var(--accent); min-height:30px; padding:0; text-align:left; text-decoration:underline; text-underline-offset:4px; }
+    .actions { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:12px; }
+    .note { margin:12px 0 0; font-size:13px; }
+    #status { margin:14px 0 0; color:#c3ccbf; overflow-wrap:anywhere; }
+    #status:empty { display:none; }
+    #status[data-kind="error"] { color:#ffc5aa; }
+    #status[data-kind="ok"] { color:var(--accent); }
+    [hidden] { display:none !important; }
+    @media(max-width:380px) { main { width:calc(100% - 24px); } section.card { padding:16px; } input { font-size:13px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="record" aria-hidden="true"></span>
+      <div><h1>Spotify 위젯 연결</h1><small>IMJI · XENEON EDGE</small></div>
+    </header>
+    <section class="card" id="setup" aria-label="Spotify 연결 설정">
+      <form id="form" autocomplete="off">
+        <div class="group">
+          <h2>내 Spotify 앱에 주소 등록</h2>
+          <p>사용 중인 앱의 Settings에서 아래 주소를 Redirect URIs에 추가하고 저장하세요.</p>
+          <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">Spotify 개발자 대시보드 열기 ↗</a>
+          <div class="row">
+            <input id="redirect" aria-label="Redirect URI" readonly spellcheck="false">
+            <button type="button" id="copy-redirect" aria-label="Redirect URI 복사">복사</button>
+          </div>
+        </div>
+        <div class="group">
+          <label for="client">Spotify Client ID</label>
+          <p>같은 앱의 Settings에서 Client ID를 복사하세요.</p>
+          <input id="client" name="client" required maxlength="256" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="내 앱의 Client ID">
+          <button type="submit" id="authorize" class="primary">Spotify에서 로그인하고 연결</button>
+          <p class="note">재생 상태, 대기열, 최근 들은 곡 조회와 재생 제어 권한을 요청합니다.</p>
+        </div>
+      </form>
+    </section>
+    <section id="result" class="card" aria-labelledby="result-title" hidden>
+      <h2 id="result-title" tabindex="-1">iCUE에 입력할 값</h2>
+      <p>제논 엣지의 위젯 설정에 두 값을 붙여 넣은 뒤 이 탭을 닫으세요.</p>
+      <div class="group">
+        <label for="result-id">Spotify Client ID</label>
+        <div class="row">
+          <input id="result-id" readonly autocomplete="off" spellcheck="false">
+          <button type="button" id="copy-id" aria-label="Client ID 복사">복사</button>
+        </div>
+      </div>
+      <div class="group">
+        <label for="token">Spotify Refresh Token</label>
+        <div class="row">
+          <input id="token" type="password" readonly autocomplete="off" spellcheck="false">
+          <button type="button" id="copy-token" aria-label="Refresh Token 복사">복사</button>
+        </div>
+        <div class="actions">
+          <button type="button" class="link" id="reveal" aria-pressed="false">토큰 보기</button>
+          <button type="button" class="link" id="clear">화면에서 지우기</button>
+        </div>
+      </div>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+    <noscript>이 페이지에서 로그인하려면 브라우저의 JavaScript를 켜 주세요.</noscript>
+  </main>
+  <script>
+  (() => {
+    'use strict';
+    const el = id => document.getElementById(id);
+    const scopes = ['user-read-playback-state', 'user-modify-playback-state', 'user-read-currently-playing', 'user-read-recently-played'];
+    const storageKey = 'imji.spotify.pkce.v1:' + location.pathname;
+    const returnUri = location.origin + location.pathname;
+    const callback = new URLSearchParams(location.search);
+    const local = location.protocol === 'http:' && ['127.0.0.1', '[::1]'].includes(location.hostname);
+    const canConnect = (local || (location.protocol === 'https:' && location.hostname !== 'localhost')) &&
+                       window.isSecureContext && Boolean(window.crypto?.subtle);
+    const form = el('form'), client = el('client'), button = el('authorize'), token = el('token');
+    let busy = false;
+
+    function message(text, kind = '') {
+      el('status').textContent = text;
+      el('status').dataset.kind = kind;
+    }
+    function working(value) {
+      busy = value;
+      button.disabled = value || !canConnect;
+      client.readOnly = value;
+      form.setAttribute('aria-busy', String(value));
+    }
+    function base64Url(bytes) {
+      return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function randomString(size) {
+      return base64Url(crypto.getRandomValues(new Uint8Array(size)));
+    }
+    function hideToken() {
+      token.type = 'password';
+      el('reveal').textContent = '토큰 보기';
+      el('reveal').setAttribute('aria-pressed', 'false');
+    }
+    function clearResult() {
+      token.value = '';
+      el('result-id').value = '';
+      hideToken();
+      el('result').hidden = true;
+      el('setup').hidden = false;
+    }
+    async function copy(field, name) {
+      if (!field.value) return;
+      try {
+        await navigator.clipboard.writeText(field.value);
+      } catch {
+        field.focus();
+        field.select();
+        message(field === token && token.type === 'password'
+          ? '자동 복사가 차단됐어요. ‘토큰 보기’를 누른 뒤 Ctrl+C 또는 기기의 복사 메뉴를 사용하세요.'
+          : '선택된 ' + name + ' 값을 Ctrl+C 또는 기기의 복사 메뉴로 복사하세요.');
+        return;
+      }
+      message(name + ' 값을 복사했습니다.', 'ok');
+    }
+
+    async function authorize(event) {
+      event.preventDefault();
+      if (busy || !canConnect) return;
+      const clientId = client.value.trim();
+      if (!clientId || /\s/.test(clientId)) {
+        message('같은 앱의 Client ID를 공백 없이 입력하세요.', 'error');
+        client.focus();
+        return;
+      }
+      working(true);
+      try {
+        const verifier = randomString(64);
+        const state = randomString(32);
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+        sessionStorage.setItem(storageKey, JSON.stringify({clientId, verifier, state, returnUri, started:Date.now()}));
+        const url = new URL('https://accounts.spotify.com/authorize');
+        url.search = new URLSearchParams({
+          response_type:'code', client_id:clientId, redirect_uri:returnUri,
+          scope:scopes.join(' '), state, code_challenge:base64Url(new Uint8Array(digest)), code_challenge_method:'S256'
+        }).toString();
+        location.assign(url.href);
+      } catch {
+        message('연결을 준비할 수 없어요. 브라우저에서 이 사이트의 탭 저장소를 허용한 뒤 다시 시도하세요.', 'error');
+        working(false);
+      }
+    }
+    async function finish() {
+      working(true);
+      let timer;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+        const validTime = saved && Number.isFinite(saved.started) && Date.now() >= saved.started && Date.now() - saved.started <= 30 * 60 * 1000;
+        if (!validTime || !saved.verifier || !saved.clientId || !saved.state || saved.returnUri !== returnUri ||
+            callback.getAll('state').length !== 1 || callback.get('state') !== saved.state) {
+          message('이 탭에서 시작한 연결을 확인할 수 없어요. 여기서 로그인을 다시 시작하세요.', 'error');
+          return;
+        }
+        sessionStorage.removeItem(storageKey);
+        client.value = saved.clientId;
+        if (callback.has('error')) {
+          message(callback.get('error') === 'access_denied' ? 'Spotify 인증을 취소했습니다.' : 'Spotify 승인을 완료하지 못했어요. 앱 설정을 확인하고 다시 시도하세요.', 'error');
+          return;
+        }
+        const code = callback.get('code');
+        if (!code || callback.getAll('code').length !== 1) {
+          message('Spotify 인증 코드가 없어요. 로그인을 다시 시작하세요.', 'error');
+          return;
+        }
+        message('Spotify에서 토큰을 발급받는 중…');
+        const controller = new AbortController();
+        timer = setTimeout(() => controller.abort(), 20000);
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+          method:'POST', credentials:'omit', redirect:'error', cache:'no-store', referrerPolicy:'no-referrer', signal:controller.signal,
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:new URLSearchParams({
+            grant_type:'authorization_code', code, redirect_uri:returnUri, client_id:saved.clientId, code_verifier:saved.verifier
+          })
+        });
+        const data = await response.json();
+        if (!response.ok || typeof data.refresh_token !== 'string' || !data.refresh_token) {
+          if (response.status === 429) message('Spotify 요청이 많습니다. 잠시 뒤 다시 연결하세요.', 'error');
+          else if (data.error === 'invalid_client') message('Client ID와 등록한 앱을 확인하고 다시 연결하세요.', 'error');
+          else message('토큰을 발급받지 못했어요. 등록한 Redirect URI를 확인한 뒤 다시 로그인하세요.', 'error');
+          return;
+        }
+        el('result-id').value = saved.clientId;
+        token.value = data.refresh_token;
+        hideToken();
+        el('setup').hidden = true;
+        el('result').hidden = false;
+        message('');
+        el('result-title').focus();
+      } catch {
+        message('인증 결과를 처리하지 못했어요. 인터넷 연결과 브라우저의 탭 저장소를 확인한 뒤 다시 로그인하세요.', 'error');
+      } finally {
+        clearTimeout(timer);
+        working(false);
+      }
+    }
+
+    form.addEventListener('submit', authorize);
+    el('copy-redirect').onclick = () => copy(el('redirect'), 'Redirect URI');
+    el('copy-id').onclick = () => copy(el('result-id'), 'Client ID');
+    el('copy-token').onclick = () => copy(token, 'Refresh Token');
+    el('reveal').onclick = () => {
+      if (token.type === 'text') return hideToken();
+      token.type = 'text';
+      el('reveal').textContent = '토큰 숨기기';
+      el('reveal').setAttribute('aria-pressed', 'true');
+      token.focus();
+      token.select();
+    };
+    el('clear').onclick = () => {
+      clearResult();
+      message('화면에서 토큰을 지웠습니다.');
+      client.focus();
+    };
+    window.addEventListener('pagehide', () => {
+      if (!el('result').hidden) clearResult();
+    });
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) { working(false); message(''); }
+    });
+
+    if (!canConnect) {
+      el('redirect').value = 'http://127.0.0.1:8765/setup.html';
+      working(false);
+      message('PC에서는 압축을 풀고 Start_Windows.cmd를 실행하세요. 웹에 올릴 때는 본인의 HTTPS 주소로 여세요.', 'error');
+      return;
+    }
+    el('redirect').value = returnUri;
+    if (callback.has('code') || callback.has('error') || callback.has('state')) {
+      history.replaceState(null, '', location.pathname);
+      finish();
+    }
+  })();
+  </script>
+</body>
+</html>
